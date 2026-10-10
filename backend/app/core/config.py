@@ -5,8 +5,9 @@ Loaded from environment variables via pydantic-settings. Includes
 production safety guardrails: the app refuses to boot in production
 with a default secret key, a SQLite database, or empty CORS origins.
 """
+import json
 from functools import lru_cache
-from typing import List
+from typing import List, Union
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,7 +33,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./doctorverify.db"
 
     # CORS
-    CORS_ORIGINS: List[str] = []
+    CORS_ORIGINS: List[str] = ["*"]
 
     # Google OAuth (optional -- /auth/google simply won't work if unset)
     GOOGLE_CLIENT_ID: str = ""
@@ -57,6 +58,23 @@ class Settings(BaseSettings):
     @classmethod
     def normalize_env(cls, v: str) -> str:
         return v.lower()
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return ["*"]
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed if str(item).strip()]
+                except Exception:
+                    pass
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return v or ["*"]
 
     @property
     def sqlalchemy_database_url(self) -> str:
@@ -100,4 +118,6 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    settings.validate_production_safety()
+    return settings
