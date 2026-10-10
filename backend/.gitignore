@@ -25,4 +25,5 @@ env/
 .coverage
 htmlcov/
 
-# Alembic (keep versions, ignore nothing extra here — versions/ is source)
+# Vercel
+.vercel/
